@@ -1,0 +1,427 @@
+---
+title: "Кластеризация регионов РФ"
+author: "Kirill Sidorov"
+date: last-modified
+format: 
+     pdf:
+         mainfont: Times New Roman
+         include-in-header:
+            text: |
+              \addtokomafont{disposition}{\rmfamily}
+         code-fold: true
+         fontsize: 10pt
+         #documentclass: article
+         toc: true
+         indent: true
+editor: visual
+lang: ru
+pdf-engine: lualatex
+---
+
+```{r, include=FALSE}
+#| label: setup
+# Для графиков с кириллицей, если потребуется
+library(showtext)
+showtext_auto()
+# для таблиц
+library(gt)
+# подгрузим необходимые библиотеки
+library(tidyverse)
+library(geofacet)
+library(ggplot2)
+library(tidymodels)
+tidymodels_prefer()
+# для удобства работы с данными
+library(here)
+
+# тред: https://stackoverflow.com/questions/73628198/change-title-headings-font-in-quarto-pdf-output
+# смотрел сюда 
+# https://t.me/rlang_ru/110169
+
+# данные 
+data <- readxl::read_xlsx(here('RF_regions_data.xlsx'), 
+                          sheet = 'Data',
+                          range = 'A1:P97',
+                          col_names = TRUE,
+                          col_types = "guess")
+
+# предзаготовленная для geofacet карта регионов россии
+# Взял из канала по R
+mygrid <- data.frame(
+  col= c(1, 5, 1, 4, 10, 3, 4, 5, 9, 10, 11, 14, 17, 1, 3, 4, 5, 6, 7, 8, 9,
+         10, 11, 12, 13, 14, 15, 16, 17, 18, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+         13, 14, 15, 16, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+         19, 4, 5, 6, 7, 8, 9, 13, 17, 5, 6, 7, 3, 4, 5, 6, 7, 8, 3,
+         5, 6, 7, 8, 5, 6, 7),
+  row = c(1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+          4, 4, 4, 4, 4, 4, 4,5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6,
+          6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8,
+          8, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 11, 11, 11),
+  code = c("Спб", "Мур", "Мск", "Кар", "Нен", "Лен", "Новг", "Воло", "Арх",
+           "Коми", "Ямал", "Крас", "Чук", "Кали", "Пск", "Твер", "Яро", "Ива",
+           "Кос", "Мари", "Кир", "Перм", "Хан", "Тюм", "Томск", "Кем", "Ирк",
+           "Якут", "Маг", "Камч", "Смол", "Калу", "МО", "Вла", "Ниж", "Чув",
+           "Тат", "Удм", "Свер", "Кург", "Ново", "Хак", "Бур", "Амур", "Брян",
+           "Орёл", "Тул", "Ряз", "Мор", "Уль", "Сам", "Бшк", "Чел", "Омск",
+           "АлКр", "Тыва", "Заб", "Евр", "Хаб", "Схлн", "Курск", "Лип", "Тмбв",
+           "Пенз", "Сар", "Орен", "Алт", "Прим", "Бел", "Вор", "Волг", "Крым",
+           "Адыг", "Крдр", "Рос", "Калм", "Аст", "Сев", "Кара", "Став", "Чеч",
+           "Даг", "Каб", "Осeт", "Инг"),
+  name = c("г. Санкт-Петербург", "Мурманская область", "г. Москва",
+           "Республика Карелия", "Ненецкий автономный округ", "Ленинградская область",
+           "Новгородская область", "Вологодская область", "Архангельская область",
+           "Республика Коми", "Ямало-Ненецкий автономный округ","Красноярский край",
+           "Чукотский автономный округ", "Калининградская область", "Псковская область",
+           "Тверская область", "Ярославская область", "Ивановская область",
+           "Костромская область", "Республика Марий Эл",
+           "Кировская область", "Пермский край", "Ханты-Мансийский автономный округ - Югра",
+           "Тюменская область", "Томская область", "Кемеровская область", "Иркутская область",
+           "Республика Саха (Якутия)", "Магаданская область", "Камчатский край",
+           "Смоленская область", "Калужская область",
+           "Московская область", "Владимирская область", "Нижегородская область",
+           "Чувашская Республика", "Республика Татарстан", "Удмуртская Республика",
+           "Свердловская область", "Курганская область", "Новосибирская область",
+           "Республика Хакасия", "Республика Бурятия",
+           "Амурская область", "Брянская область",
+           "Орловская область", "Тульская область", "Рязанская область",
+           "Республика Мордовия", "Ульяновская область","Самарская область",
+           "Республика Башкортостан", "Челябинская область",
+           "Омская область", "Алтайский край", "Республика Тыва",
+           "Забайкальский край", "Еврейская автономная область", "Хабаровский край",
+           "Сахалинская область", "Курская область", "Липецкая область",
+           "Тамбовская область", "Пензенская область", "Саратовская область",
+           "Оренбургская область", "Республика Алтай", "Приморский край", "Белгородская область",
+           "Воронежская область", "Волгоградская область", "Республика Крым",
+           "Республика Адыгея", "Краснодарский край", "Ростовская область",
+           "Республика Калмыкия", "Астраханская область", "г. Севастополь",
+           "Карачаево-Черкесская Республика", "Ставропольский край",
+           "Чеченская Республика", "Республика Дагестан",
+           "Кабардино-Балкарская Республика", "Республика Северная Осетия - Алания",
+           "Республика Ингушетия"),
+  stringsAsFactors = FALSE
+)
+```
+
+{{< pagebreak >}}
+
+## Выводы для бизнеса
+
+## Краткий литературный обзор
+
+Вопросом кластеризации регионов страны исследователи задаются постоянно с разной степенью интенсивности. Как правило, кластеризация служит инсутрментом поиска укрупненных федеральных групп, по которым оценивается воздействие того или иного интструмента политики (policy).  
+
+Например, наиболее известными работами в этом жанре являются исследования о степени вклада федеральных и региональных факторов процентного канала трансмиссионного механизма денежно-кредитной политики (ДКП) за период ковид и послесанкционного 2022 года ([Скуратова, Зверева, 2024](https://www.cbr.ru/StaticHtml/File/161845/wp_129_2.pdf)). В указанной работе были выделены факторы региональной неоднородности для формирования укрупненных групп: неравенство по доходам, размер предприятий региона, банковского сектора.
+
+В другой работе ([Зверева et al., 2024](https://rjmf.econs.online/upload/iblock/ebf/0hj7s7r1pgy5m4y28crl7e0kxczsfq91/Vliyaniye-neravenstva-na-rabotu-transmissionnogo-mekhanizm%D0%B0.pdf)) исследовался влияние внутрегионального неравенства на работу каналов ДКП, где для выделения основных групп регионов использовался метод k-median в зависимости от уровня неравенства в регионе.
+
+В более ранних работах ([Айвазян et al. 2016](https://www.hse.ru/mirror/pubs/share/421012695.pdf)) предлагалось выделение групп регионов РФ по производственному потенциалу: зависимость ВРП от стоиомсти основных фондов и численности занятых. На основе данных был построен интегральный индикатор специализации регионов (сельское хозяйство, добыча полезных ископаемых и проч.), на основе которого были выделены группы регионов РФ.
+
+Для полноты картины представим работу исследователей других стран. Так, например, в работе сотрудников Федерально Банка Нью-Йорка ([Kim-Sherman, Seltzer](https://www.newyorkfed.org/medialibrary/media/research/staff_reports/sr1135.pdf?sc_lang=en), 2024) поднимается проблема коррелированности ошибок панельных регрессий в экономика климата (climate economics). На основе подхода к выделению кластеров на основе климатических катастроф авторы показывают, что ущерб стране, испытывающий климатическую катастрофу, получает на 0.45% больше ущерба при увеличении ущерба в соседней стране кластера на 1%.
+
+{{< pagebreak >}}
+
+## Описание данных
+
+Для первоначальной работы с данными были выбраны показатели экономического положения регионов: ВРП, оборот торговли, стоимость отгрузок и др. Полный список приведен ниже:
+
+```{r echo=FALSE, lang="ru"}
+#| label: Data description
+
+descs <- readxl::read_xlsx(
+  here('RF_regions_data.xlsx'),
+  sheet = 'Desc',
+  range = 'A1:C15',
+  col_names = TRUE,
+  col_types = "text"
+) |>
+  select("Показатель", "Пояснение") |>
+  filter(Показатель != "unprofit_orgs_share_2023")
+
+
+descs |>
+  gt(id = "Data description") |>
+  tab_options(table.font.size = 12, latex.use_longtable = TRUE) |>
+  cols_width("Пояснение" ~ px(300), "Показатель" ~ px(200), ) |>
+  tab_source_note(source_note = "Источник: Росстат, ЕМИСС, РИА НОВОСТИ.")
+```
+
+## Методология
+
+Для отправной точки кластеризации выбран подход [K-means](https://scikit-learn.org/stable/modules/clustering.html#k-means). Данный алгоритм делит данные на отдельные группы одинаковой дисперсии, минимизируя критерий *инерции* или сумму квадратов отклонений кластера, что представимо следующей формулой:  
+$$\sum_{i=0}^{n}\min_{\mu_j \in C}(||x_i-\mu_j||^2)$$  
+
+Где $\mu_j$ - среднее кластера $C$, $x_i$ - эдемент наблюдаемого множества $X$, $||*||$ - выбранная норма (Евклидова, L1 и др.).  
+
+Метод имеет свои ограничения, иногда более подходящей моделью может служить c-means (оценивает вероятность вхождения в кластер), а также улучшенный метод k-means++. В научных работах также используется подход k-median, что в условиях смещенных распределний метрик может нивелировать этот недостаток.  
+
+Для нашего случая воспользуемся базовым k-means. Для реализации каждый наблюдаемый фактор необходимо стандартизовать, чтобы модель не отдавала предпочтение одному количественно наибольшему признаку.  
+Стандартизация выглядит следующим образом:  
+$$z =  \frac {x_i - mean(X)} {sd(X)}$$
+
+Где mean(X) - среднее по всей выборке, sd - стандартное отклонение по всей выборке.
+
+### Только данные ВРП 2022 года
+
+```{r, echo = FALSE}
+#| label: modeling with just grp
+
+set.seed(137)
+
+# just grp_data
+grp_data <- data |>
+  select(c(code, Region, GRP_2022)) |>
+  filter(Region != "Российская Федерация") |>
+  # убираем федеральные округа
+  filter(!grepl('ФО', code)) |>
+  filter(!grepl('с АО', code)) |>
+  mutate(GRP_2022 = (GRP_2022 - mean(GRP_2022)) / sd(GRP_2022),
+         model = "GRP_2022 only")
+
+# идею взял попробовать тут
+# https://www.tidymodels.org/learn/statistics/k-means/
+kclusts <-
+  tibble(k = 3:9) |>
+  mutate(
+    kclust = map(k, ~ kmeans(grp_data |> select(
+      !c(Region, code, model)
+    ), .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, grp_data)
+  )
+
+# результаты по кол-ву кластеров
+clusterings <- kclusts |>
+  unnest(cols = c(augmented))
+  
+```
+
+```{r, lang="ru", echo=FALSE, include=FALSE}
+#| label: diplaying grp clustering results
+
+# пробуем нарисовать карту для каждого кластера
+for (i in 3:9) {
+  p <- clusterings |>
+    filter(k == i) |>
+    select(c(code, .cluster)) |>
+    rename(Кластер = .cluster) |>
+    ggplot(aes("", "", fill = Кластер)) +
+    geom_col(position = position_dodge()) +
+    facet_geo( ~ code, grid = mygrid) +
+    theme_bw() +
+    labs(title = paste("Количество кластеров:", i)) +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      strip.text.x = element_text(size = 16),
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.spacing = unit(0.5, "pt"),
+      legend.text = element_text(size = 18),
+      legend.title = element_text(size = 20),
+      plot.background = element_rect(color = "grey", linewidth = 0.1),
+      plot.title = element_text(size = 26)
+    )
+  #scale_fill_brewer(palette = "Paired")
+  
+  # сохраняем результат
+  ggsave(
+    paste("images/regions_grp_", i, ".png", sep = ""),
+    width = 15,
+    height = 10,
+    units = "cm"
+  )
+}
+```
+
+Для начала используем модель только по ВРП, результаты приведены ниже:
+
+```{r, fig.align='center', echo=FALSE, }
+#https://stackoverflow.com/questions/51268623/insert-images-using-knitrinclude-graphics-in-a-for-loop
+files <- list.files(path = here('images/'),
+                    pattern = "._grp_\\d.png$",
+                    full.names = TRUE)
+
+knitr::include_graphics(files, error = FALSE)
+```
+
+Предварительно выглядит так, что наиболее адекватным разделением кажется количество кластеров в районе - 5-7. Наиболее отличительная черта - город Москва всегда выделен в отдельный кластер. Посмотрим дальше.
+
+### Данные по рейтингу социально-экономического положения
+
+Отдельно решили рассмотреть [рейтинг](https://ria.ru/20240610/reyting-1951499062.html), составленный нвоостным агентством "РИА НОВОСТИ". Рейтинг сочетает в себе интегральный индекс, учитывающий бюджетную сферу, показатели производительности регионов и социальной сферы. Аналогично предыдущей кластеризации, кластеризовать будет от 3 до 9 групп. Результат приведен ниже:
+
+```{r, include=FALSE}
+# Аналогично предыдущему разу
+set.seed(138)
+
+
+ria_data <- data |>
+  select(c(code, Region, ria_ratings_2023)) |>
+  filter(Region != "Российская Федерация") |>
+  # убираем федеральные округа
+  filter(!grepl('ФО', code)) |>
+  filter(!grepl('с АО', code)) |>
+  mutate(
+    ria_ratings_2023 = (ria_ratings_2023 - mean(ria_ratings_2023)) / sd(ria_ratings_2023),
+    model = "ria ratings only"
+  )
+
+# идею взял попробовать тут
+# https://www.tidymodels.org/learn/statistics/k-means/
+kclusts <-
+  tibble(k = 3:9) |>
+  mutate(
+    kclust = map(k, ~ kmeans(ria_data |> select(
+      !c(Region, code, model)
+    ), .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, grp_data)
+  )
+
+# результаты по кол-ву кластеров
+clusterings <- kclusts |>
+  unnest(cols = c(augmented))
+```
+
+```{r, lang="ru", echo=FALSE, include=FALSE}
+#| label: diplaying grp clustering results for ria ratings
+
+# пробуем нарисовать карту для каждого кластера
+for (i in 3:9) {
+  p <- clusterings |>
+    filter(k == i) |>
+    select(c(code, .cluster)) |>
+    rename(Кластер = .cluster) |>
+    ggplot(aes("", "", fill = Кластер)) +
+    geom_col(position = position_dodge()) +
+    facet_geo( ~ code, grid = mygrid) +
+    theme_bw() +
+    labs(title = paste("Количество кластеров:", i)) +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      strip.text.x = element_text(size = 16),
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.spacing = unit(0.5, "pt"),
+      legend.text = element_text(size = 18),
+      legend.title = element_text(size = 20),
+      plot.background = element_rect(color = "grey", linewidth = 0.1),
+      plot.title = element_text(size = 26)
+    )
+  #scale_fill_brewer(palette = "Paired")
+  
+  # сохраняем результат
+  ggsave(
+    paste("images/regions_ria_", i, ".png", sep = ""),
+    width = 15,
+    height = 10,
+    units = "cm"
+  )
+}
+```
+
+```{r, fig.align='center', echo=FALSE}
+#https://stackoverflow.com/questions/51268623/insert-images-using-knitrinclude-graphics-in-a-for-loop
+files <- list.files(path = here('images/'), 
+                    pattern = "._ria_\\d.png$",
+                    full.names = TRUE)
+
+knitr::include_graphics(files, error = FALSE)
+```
+
+Из-за близости по рейтингу МСК, Питера, МО, Татарстана и ХМАО, получаем объединенный кластер, что кажется несколько контринтуитивно - Москва как федеральная единица в РФ крайне сильно выделяется относительно остальных регионов своим экономическим положением.  
+Пока кажется наименее подходящим фактором для кластеризации.
+
+### Данные отгрузки, занятости и др.
+
+Последний вариант - выбрать оставшиеся компоненты и получить распределение регионов.
+
+```{r, echo = FALSE}
+#| label: modeling with other vars
+
+set.seed(139)
+
+# just grp_data
+model_data <- data |>
+  select(!c(GRP_2022, ria_ratings_2023, unprofit_orgs_share_2023)) |>
+  filter(Region != "Российская Федерация") |>
+  # убираем федеральные округа
+  filter(!grepl('ФО', code)) |>
+  filter(!grepl('с АО', code)) |>
+  mutate(across(where(is.double), ~ (.x - mean(.x)) / sd(.x)), model = "other vars except GRP and ratings")
+
+# идею взял попробовать тут
+# https://www.tidymodels.org/learn/statistics/k-means/
+kclusts <-
+  tibble(k = 3:9) |>
+  mutate(
+    kclust = map(k, ~ kmeans(model_data |> select(
+      !c(Region, code, model)
+    ), .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, grp_data)
+  )
+
+# результаты по кол-ву кластеров
+clusterings <-
+  kclusts |>
+  unnest(cols = c(augmented))
+  
+```
+
+```{r, lang="ru", echo=FALSE, include=FALSE}
+#| label: diplaying clustering results for other vars
+
+# пробуем нарисовать карту для каждого кластера
+for (i in 3:9) {
+  p <- clusterings |>
+    filter(k == i) |>
+    select(c(code, .cluster)) |>
+    rename(Кластер = .cluster) |>
+    ggplot(aes("", "", fill = Кластер)) + 
+    geom_col(position = position_dodge()) +
+    facet_geo(~ code, grid = mygrid) +
+    theme_bw() +
+    labs(title = paste("Количество кластеров:", i)) +
+    theme(
+      axis.title.x = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      strip.text.x = element_text(size = 16),
+      axis.title.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.spacing = unit(0.5, "pt"),
+      legend.text = element_text(size = 18),
+      legend.title = element_text(size = 20),
+      plot.background = element_rect(color = "grey", linewidth = 0.1),
+      plot.title = element_text(size = 26)
+      )
+    #scale_fill_brewer(palette = "Paired")
+
+  # сохраняем результат
+  ggsave(
+    paste("images/regions_other_", i, ".png", sep = ""), 
+    width = 15, 
+    height = 10, 
+    units = "cm"
+    )
+}
+```
+
+```{r, fig.align='center', echo=FALSE}
+#https://stackoverflow.com/questions/51268623/insert-images-using-knitrinclude-graphics-in-a-for-loop
+files <- list.files(path = here('images/'), 
+                    pattern = "._other_\\d.png$",
+                    full.names = TRUE)
+
+knitr::include_graphics(files, error = FALSE)
+```
